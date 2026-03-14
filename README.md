@@ -2,49 +2,57 @@
 
 ```mermaid
 sequenceDiagram
-    participant C as Клиент
-    participant R as Роутер (Router)
-    participant Reg as Registry (Git)
-    participant M as Мозг (LLM, опционально)
-    participant A as Airflow (Pipeline)
-    participant Model1 as Мини-модель А
-    participant Model2 as Мини-модель Б
-    participant ModelN as MCP-серверы
+    autonumber
+    actor User as Пользователь
 
-    C->>R: Запрос (например, "сделай отчет")
-    
-    rect rgb(240, 240, 255)
-        Note over R,Reg: Фаза 1: Маршрутизация
-        R->>Reg: Какие модели умеют X?
-        Reg-->>R: Список моделей и их MCP-эндпоинты
-        
-        alt Правила сработали
-            R->>R: Быстрый rule-based выбор
-        else Нужен "мозг"
-            R->>M: Сложный случай, помоги выбрать
-            M-->>R: Рекомендация: ModelA -> ModelB
-        end
+    box rgb(227, 242, 253) "Слой 3: Оркестратор (LLM-as-a-OS)"
+        participant Router as Роутер / Agentic Orchestrator<br>(GPT-4 / Llama-3)
     end
-    
-    rect rgb(255, 240, 240)
-        Note over R,A: Фаза 2: Построение пайплайна
-        R->>A: Сформировать DAG (ModelA → ModelB)
-        A-->>R: Пайплайн создан
+
+    box rgb(255, 243, 224) "Слой 1: Реестр (Registry)"
+        participant Registry as Model Registry<br>(Harbor / Hugging Face)
     end
-    
-    rect rgb(240, 255, 240)
-        Note over A,ModelN: Фаза 3: Выполнение через MCP
-        A->>Model1: MCP-вызов с данными
-        Model1-->>A: Результат А
-        
-        A->>Model2: MCP-вызов(результат А)
-        Model2-->>A: Результат Б
-        
-        Note over A,ModelN: ... и так далее по DAG
+
+    box rgb(232, 245, 233) "Слой 4: Пайплайн (Execution)"
+        participant Pipeline as Execution Pipeline<br>(Ray / DAG Runner)
     end
+
+    box rgb(243, 229, 245) "Слой 2: Интерфейсы (Inference)"
+        participant KubeFlow as Кластер Моделей<br>(Kubernetes / Kubeflow)
+    end
+
+    %% Основной сценарий
+    User->>Router: Запрос: "Сделай отчет по продажам за вчера"
+
+    %% Этап планирования
+    Note over Router, Registry: ФазаDiscovery: Поиск "умений"
+    Router->>Registry: Запросить список доступных моделей и метаданные
+    Registry-->>Router: Model Cards (Model A: Дата, Model B: SQL, Model C: Аналитика)
+
+    Note over Router: Фаза Planning (Agentic)<br/>1. Понять Intent<br/>2. Составить план (DAG)<br/>3. Выбрать модели A -> B -> C
+
+    %% Этап выполнения
+    Router->>Pipeline: Передать DAG (План выполнения)
+    activate Pipeline
+
+    %% Шаг 1: Извлечение даты
+    Pipeline->>KubeFlow: Вызов Model A (Извлечение даты)
+    KubeFlow-->>Pipeline: Результат: "2024-01-01"
+    Note right of Pipeline: Промежуточный результат 1
+
+    %% Шаг 2: Генерация SQL
+    Pipeline->>KubeFlow: Вызов Model B (SQL Генератор)<br/>Вход: "2024-01-01"
+    KubeFlow-->>Pipeline: Результат: Data Set (Продажи)
+    Note right of Pipeline: Промежуточный результат 2
+
+    %% Шаг 3: Анализ
+    Pipeline->>KubeFlow: Вызов Model C (Аналитик)<br/>Вход: Data Set
+    KubeFlow-->>Pipeline: Результат: Текст отчета
     
-    A-->>R: Финальный результат
-    R-->>C: Ответ клиенту
+    Pipeline-->>Router: Финальный результат (Отчет)
+    deactivate Pipeline
+
+    Router-->>User: Ответ: "Вот отчет по продажам..."
 ```
 
 ```mermaid
